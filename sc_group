@@ -1,0 +1,16 @@
+#!/bin/sh
+# multiple directories handler example
+/usr/local/sbin/sc_handler --source_dir=/path/to/Documents \
+                           --shadow_dir=/path/to/shadow_copies/Documents \
+                           --owner=cai \
+                           --file_ttl=365 \
+                           --max_copies=5 \
+                           --compress_alg=7z &
+# ATTENTION! '&' symbol need to be placed on the end of all sc_handler commands except last one!
+/usr/local/sbin/sc_handler --source_dir=/path/to/Repo \
+                           --shadow_dir=/path/to/shadow_copies/Repo \
+                           --owner=cai \
+                           --file_ttl=365 \
+                           --max_copies=5 \
+                           --compress_alg=none 
+# ATTENTION! You don't need '&' symbol at the end of last sc_handler command!
