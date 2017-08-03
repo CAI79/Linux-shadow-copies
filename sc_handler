@@ -48,7 +48,7 @@ dirs_mask=755
 files_mask=460
 
 # Files time to live in days
-file_ttl=1
+file_ttl=367
 
 # Maximum stored file copies
 max_copies=5
