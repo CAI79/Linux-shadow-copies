@@ -1,0 +1,22 @@
+[Unit]
+Description=Shadow copies provider
+
+[Service]
+Type=simple
+# Next line set multiple directories handlers in external file
+ExecStart=/usr/local/sbin/sc_group
+# Next lines set single directory handler
+# You need to set paths to files and other options. sc_handler --help for full options list
+#ExecStart=/usr/local/sbin/sc_handler --source_dir=/path/to/Documents \
+#                                     --shadow_dir=/path/to/shadow_copies/Documents \
+#                                     --owner=someone \
+#                                     --file_ttl=365 \
+#                                     --max_copies=5 \
+#                                     --compress_alg=7z
+KillMode=control-group
+NotifyAccess=all
+SuccessExitStatus=2
+
+[Install]
+WantedBy=multi-user.target
+Alias=shadow_copies.service
