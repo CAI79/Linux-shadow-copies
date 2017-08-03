@@ -1,0 +1,205 @@
+#!/bin/sh
+
+# MIT License:
+#
+# Copyright (c) 2017, Alexander I. Chebykin
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+
+# Shadow copy script
+####################
+
+# Begin of options block
+########################
+
+# Directory where shadow copies will be placed
+shadow_dir=/var/shadow_copies/$USER/Documents
+
+# Directory with source files
+source_dir=$(xdg-user-dir DOCUMENTS)
+
+# Snapshot owner
+owner=$USER
+
+# Snapshot group
+group=root
+
+# Snapshot directories mask
+dirs_mask=755
+
+# Snapshot files mask
+files_mask=460
+
+# Files time to live in days
+file_ttl=1
+
+# Maximum stored file copies
+max_copies=5
+
+# Compress algorithm: 7z, tar, tar.gz, tar.bz, zip, none
+compress_alg=none
+
+# Files extentions controlled by script
+extensions=( dia doc docx lyx odt ods rtf txt xls xlsx 
+	     bash c cpp cproject h inc mk project properties xml
+	     lfm lpi lpr lps pas res
+	     css htm html js php
+	     psd xcf
+	     sh3d
+	     sql )
+
+# End of options block
+######################
+
+for param in "$@"
+do
+    prm=$(echo $param | cut -f1 -d=)
+    val=$(echo $param | cut -f2 -d=)
+    if [ $prm == "--max_copies" ]; then
+	max_copies=$val
+    elif [ $prm == "--shadow_dir" ]; then
+	shadow_dir=$val
+    elif [ $prm == "--source_dir" ]; then
+	source_dir=$val
+    elif [ $prm == "--owner" ]; then
+	owner=$val
+    elif [ $prm == "--group" ]; then
+	group=$val
+    elif [ $prm == "--dirs_mask" ]; then
+	dirs_mask=$val
+    elif [ $prm == "--files_mask" ]; then
+	files_mask=$val
+    elif [ $prm == "--file_ttl" ]; then
+	file_ttl=$val
+    elif [ $prm == "--max_copies" ]; then
+	max_copies=$val
+    elif [ $prm == "--compress_alg" ]; then
+	compress_alg=$val
+    elif [ $prm == "--help" ]; then
+	echo "Usage: sc_handler [OPTIONS]"
+	echo ""
+	echo "--source_dir=path"
+	echo "                 directory with source files"
+	echo "--shadow_dir=path"
+	echo "                 directory with snapshots"
+	echo "--owner=owner"
+	echo "                 snapshots owner"
+	echo "--group=group"
+	echo "                 snapshots group"
+	echo "--dirs_mask=mask"
+	echo "                 snapshot directories rights mask"
+	echo "--files_mask=mask"
+	echo "                 snapshot files mask"
+	echo "--file_ttl=days"
+	echo "                 snapshot files time to live in days"
+	echo "--max_copies=n"
+	echo "                 maximum stored snapshots of single file"
+	echo "--compress_alg=7z|tar|tar.gz|tar.bz|zip|none"
+	echo "                 compress algorithm"
+	echo ""
+	echo "Dafault values are:"
+	echo "--source_dir:    $source_dir"
+	echo "--shadow_dir:    $shadow_dir"
+	echo "--owner:         $owner"
+	echo "--group:         $group"
+	echo "--dirs_mask:     $dirs_mask"
+	echo "--files_mask:    $files_mask"
+	echo "--file_ttl:      $file_ttl"
+	echo "--max_copies:    $max_copies"
+	echo "--compress_alg:  $compress_alg"
+	exit
+    fi
+done
+
+echo "Started with settings:"
+echo "--source_dir:    $source_dir"
+echo "--shadow_dir:    $shadow_dir"
+echo "--owner:         $owner"
+echo "--group:         $group"
+echo "--dirs_mask:     $dirs_mask"
+echo "--files_mask:    $files_mask"
+echo "--file_ttl:      $file_ttl"
+echo "--max_copies:    $max_copies"
+echo "--compress_alg:  $compress_alg"
+
+while true; do
+    inotifywait -r -e modify -e create -e delete -e move --format "%w%f" "$source_dir" | while read "file"
+    do
+	# need backup flag
+	need_backup=0
+	# filename in lower case
+	file_lc="${file,,}"
+	# file extension
+	file_ext="${file_lc##*.}"
+
+	for i in "${extensions[@]}"
+	do
+	    if [ "$file_ext" == "$i" ]; then
+		need_backup=1
+		source_file=${file##*/}
+		source_dir="${file%/*}"
+		source_dir_len=${#source_dir}
+		file_dir=${source_dir:source_dir_len}
+		timestamp=$(date +%Y%m%d_%H%M%S)
+		if [ -f "$file" ]; then
+		    mkdir -p "$shadow_dir$file_dir"
+		    chown $owner:$group "$shadow_dir$file_dir"
+		    chmod $dirs_mask "$shadow_dir$file_dir"
+		    if [  "$compress_alg" == "7z" ]; then
+			arch_ext=".7z"
+			7z a -mx7 -y "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+		    elif [  "$compress_alg" == "tar" ]; then
+			arch_ext=".tar"
+			tar -cf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+		    elif [  "$compress_alg" == "tar.gz" ]; then
+			arch_ext=".tar.gz"
+			tar -czf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+		    elif [  "$compress_alg" == "tar.bz" ]; then
+			arch_ext=".tar.bz"
+			tar -cjf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+		    elif [  "$compress_alg" == "zip" ]; then
+			arch_ext=".zip"
+			zip "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+		    elif [  "$compress_alg" == "none" ]; then
+			arch_ext=".$file_ext"
+			cp "$source_dir/$source_file" "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
+		    fi
+		    chown $owner:$group "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
+		    chmod $files_mask "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
+
+		    # Remove overquoted snapshots
+		    files_count=1
+		    for j in `ls -t $shadow_dir$file_dir/$source_file.*$arch_ext`
+		    do
+			if [ $files_count -le $max_copies ]
+			then
+			    ((files_count++))
+			    continue
+			fi
+			rm $j
+			echo "file $j removed"
+		    done
+		fi
+	    fi
+	done
+    done
+    find $shadow_dir -type f -mtime +$file_ttl -delete 
+    find $shadow_dir -type d -empty -delete
+done
