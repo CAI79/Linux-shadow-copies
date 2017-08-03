@@ -6,6 +6,7 @@
 
 ## Requirements
 inotify-tools<br>
+Optionally: 7Zip, Zip
 
 ## Installation
 
