@@ -10,7 +10,7 @@ Optionally: 7Zip, Zip
 
 ## Installation
 
-### Step 1: Get CP and install files
+### Step 1: Get and install files
 ```sh
 $ git clone --depth 1 https://github.com/CAI79/Linux-shadow-copies.git
 $ cd Linux-shadow-copies
