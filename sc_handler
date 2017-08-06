@@ -26,8 +26,8 @@
 # Shadow copy script
 ####################
 
-# Begin of options block
-########################
+# Begin of default settings block
+#################################
 
 # Directory where shadow copies will be placed
 shadow_dir=/var/shadow_copies/$USER/Documents
@@ -48,7 +48,7 @@ dirs_mask=755
 files_mask=460
 
 # Files time to live in days
-file_ttl=367
+file_ttl=1
 
 # Maximum stored file copies
 max_copies=5
@@ -65,8 +65,8 @@ extensions=( dia doc docx lyx odt ods rtf txt xls xlsx
 	     sh3d
 	     sql )
 
-# End of options block
-######################
+# End of default settings block
+###############################
 
 for param in "$@"
 do
@@ -142,8 +142,6 @@ echo "--compress_alg:  $compress_alg"
 while true; do
     inotifywait -r -e modify -e create -e delete -e move --format "%w%f" "$source_dir" | while read "file"
     do
-	# need backup flag
-	need_backup=0
 	# filename in lower case
 	file_lc="${file,,}"
 	# file extension
@@ -152,11 +150,10 @@ while true; do
 	for i in "${extensions[@]}"
 	do
 	    if [ "$file_ext" == "$i" ]; then
-		need_backup=1
-		source_file=${file##*/}
-		source_dir="${file%/*}"
-		source_dir_len=${#source_dir}
-		file_dir=${source_dir:source_dir_len}
+		source_file="${file##*/}"
+		source_file_dir="${file%/*}"
+		source_file_dir_len=${#source_dir}
+		file_dir="${source_file_dir:source_file_dir_len}"
 		timestamp=$(date +%Y%m%d_%H%M%S)
 		if [ -f "$file" ]; then
 		    mkdir -p "$shadow_dir$file_dir"
@@ -164,42 +161,41 @@ while true; do
 		    chmod $dirs_mask "$shadow_dir$file_dir"
 		    if [  "$compress_alg" == "7z" ]; then
 			arch_ext=".7z"
-			7z a -mx7 -y "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+			7z a -mx7 -y "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
 		    elif [  "$compress_alg" == "tar" ]; then
 			arch_ext=".tar"
-			tar -cf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+			tar -cf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
 		    elif [  "$compress_alg" == "tar.gz" ]; then
 			arch_ext=".tar.gz"
-			tar -czf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+			tar -czf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
 		    elif [  "$compress_alg" == "tar.bz" ]; then
 			arch_ext=".tar.bz"
-			tar -cjf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+			tar -cjf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
 		    elif [  "$compress_alg" == "zip" ]; then
 			arch_ext=".zip"
-			zip "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_dir/$source_file"
+			zip "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
 		    elif [  "$compress_alg" == "none" ]; then
 			arch_ext=".$file_ext"
-			cp "$source_dir/$source_file" "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
+			cp "$source_file_dir/$source_file" "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
 		    fi
 		    chown $owner:$group "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
 		    chmod $files_mask "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
 
 		    # Remove overquoted snapshots
-		    files_count=1
-		    for j in `ls -t $shadow_dir$file_dir/$source_file.*$arch_ext`
+		    find_mask=$(echo $shadow_dir$file_dir/$source_file.*$arch_ext | awk '{gsub(/ /,"\\ ")}8')
+		    let "skip_files = max_copies + 1"
+		    OIFS="$IFS"
+		    IFS=$'\n'
+		    find $find_mask -maxdepth 1 -type f -printf "%T@ %p\n" | sort -k 1nr | sed 's/^[^ ]* //' | tail -n +$skip_files | while read file2del
 		    do
-			if [ $files_count -le $max_copies ]
-			then
-			    ((files_count++))
-			    continue
-			fi
-			rm $j
-			echo "file $j removed"
+			rm $file2del
+			echo "file '$file2del' deleted"
 		    done
+		    IFS="$OIFS"
 		fi
 	    fi
 	done
     done
-    find $shadow_dir -type f -mtime +$file_ttl -delete 
-    find $shadow_dir -type d -empty -delete
+    find "$shadow_dir" -type f -mtime +$file_ttl -delete 
+    find "$shadow_dir" -type d -empty -delete
 done
