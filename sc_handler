@@ -57,11 +57,11 @@ max_copies=5
 compress_alg=none
 
 # Files extentions controlled by script
-extensions=( dia doc docx lyx odt ods rtf txt xls xlsx 
+extensions=( dia doc docx dot dps dpt et ett lyx odt ods pot potm potx pps ppsm ppsx ppt pptm pptx rtf txt wps xls xlsx xlt xltx xlsm
 	     bash c cpp cproject h inc mk project properties xml
 	     lfm lpi lpr lps pas res
 	     css htm html js php
-	     psd xcf
+	     bmp gif jpg jpeg png psd tif tiff wmf xcf
 	     sh3d
 	     sql )
 
@@ -139,62 +139,60 @@ echo "--file_ttl:      $file_ttl"
 echo "--max_copies:    $max_copies"
 echo "--compress_alg:  $compress_alg"
 
-while true; do
-    inotifywait -r -e modify -e create -e delete -e move --format "%w%f" "$source_dir" | while read "file"
+inotifywait -m -r -e modify -e create -e delete -e move --format "%w%f" "$source_dir" | while read "file"
+do
+    # filename in lower case
+    file_lc="${file,,}"
+    # file extension
+    file_ext="${file_lc##*.}"
+
+    for i in "${extensions[@]}"
     do
-	# filename in lower case
-	file_lc="${file,,}"
-	# file extension
-	file_ext="${file_lc##*.}"
-
-	for i in "${extensions[@]}"
-	do
-	    if [ "$file_ext" == "$i" ]; then
-		source_file="${file##*/}"
-		source_file_dir="${file%/*}"
-		source_file_dir_len=${#source_dir}
-		file_dir="${source_file_dir:source_file_dir_len}"
-		timestamp=$(date +%Y%m%d_%H%M%S)
-		if [ -f "$file" ]; then
-		    mkdir -p "$shadow_dir$file_dir"
-		    chown $owner:$group "$shadow_dir$file_dir"
-		    chmod $dirs_mask "$shadow_dir$file_dir"
-		    if [  "$compress_alg" == "7z" ]; then
-			arch_ext=".7z"
-			7z a -mx7 -y "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
-		    elif [  "$compress_alg" == "tar" ]; then
-			arch_ext=".tar"
-			tar -cf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
-		    elif [  "$compress_alg" == "tar.gz" ]; then
-			arch_ext=".tar.gz"
-			tar -czf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
-		    elif [  "$compress_alg" == "tar.bz" ]; then
-			arch_ext=".tar.bz"
-			tar -cjf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
-		    elif [  "$compress_alg" == "zip" ]; then
-			arch_ext=".zip"
-			zip "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
-		    elif [  "$compress_alg" == "none" ]; then
-			arch_ext=".$file_ext"
-			cp "$source_file_dir/$source_file" "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
-		    fi
-		    chown $owner:$group "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
-		    chmod $files_mask "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
-
-		    # Remove overquoted snapshots
-		    find_mask=$(echo $shadow_dir$file_dir/$source_file.*$arch_ext | awk '{gsub(/ /,"\\ ")}8')
-		    let "skip_files = max_copies + 1"
-		    OIFS="$IFS"
-		    IFS=$'\n'
-		    find $find_mask -maxdepth 1 -type f -printf "%T@ %p\n" | sort -k 1nr | sed 's/^[^ ]* //' | tail -n +$skip_files | while read file2del
-		    do
-			rm $file2del
-			echo "file '$file2del' deleted"
-		    done
-		    IFS="$OIFS"
+	if [ "$file_ext" == "$i" ]; then
+	    source_file="${file##*/}"
+	    source_file_dir="${file%/*}"
+	    source_file_dir_len=${#source_dir}
+	    file_dir="${source_file_dir:source_file_dir_len}"
+	    timestamp=$(date +%Y%m%d_%H%M%S)
+	    if [ -f "$file" ]; then
+		mkdir -p "$shadow_dir$file_dir"
+		chown $owner:$group "$shadow_dir$file_dir"
+		chmod $dirs_mask "$shadow_dir$file_dir"
+		if [  "$compress_alg" == "7z" ]; then
+		    arch_ext=".7z"
+		    7z a -mx7 -y "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
+		elif [  "$compress_alg" == "tar" ]; then
+		    arch_ext=".tar"
+		    tar -cf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
+		elif [  "$compress_alg" == "tar.gz" ]; then
+		    arch_ext=".tar.gz"
+		    tar -czf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
+		elif [  "$compress_alg" == "tar.bz" ]; then
+		    arch_ext=".tar.bz"
+		    tar -cjf "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
+		elif [  "$compress_alg" == "zip" ]; then
+		    arch_ext=".zip"
+		    zip "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext" "$source_file_dir/$source_file"
+		elif [  "$compress_alg" == "none" ]; then
+		    arch_ext=".$file_ext"
+		    cp "$source_file_dir/$source_file" "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
 		fi
+		chown $owner:$group "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
+		chmod $files_mask "$shadow_dir$file_dir/$source_file.$timestamp$arch_ext"
+
+		# Remove overquoted snapshots
+		find_mask=$(echo $shadow_dir$file_dir/$source_file.*$arch_ext | awk '{gsub(/ /,"\\ ")}8')
+		let "skip_files = max_copies + 1"
+		OIFS="$IFS"
+		IFS=$'\n'
+		find $find_mask -maxdepth 1 -type f -printf "%T@ %p\n" | sort -k 1nr | sed 's/^[^ ]* //' | tail -n +$skip_files | while read file2del
+		do
+		    rm "$file2del"
+		    echo "file '$file2del' deleted"
+		done
+		IFS="$OIFS"
 	    fi
-	done
+	fi
     done
     find "$shadow_dir" -type f -mtime +$file_ttl -delete 
     find "$shadow_dir" -type d -empty -delete
